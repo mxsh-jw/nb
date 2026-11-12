@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFC 数据</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0;
+    padding: 24px 20px 48px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    color: #1c1c1e;
+    background: #fff;
+    white-space: pre-wrap;
+    word-break: break-word;
+    -webkit-text-size-adjust: 100%;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #f2f2f7; background: #000; }
+  }
+  #content { max-width: 640px; margin: 0 auto; }
+  .error { color: #d70015; }
+  .hint { color: #8e8e93; font-size: 15px; }
+</style>
+</head>
+<body>
+<div id="content" class="hint">正在解析…</div>
+<script>
+(function () {
+  var el = document.getElementById('content');
+
+  function fail(msg) {
+    el.className = 'error';
+    el.textContent = msg;
+  }
+
+  // 把 Base64（含 URL-safe 变体）解码为 UTF-8 字符串
+  function base64ToUtf8(b64) {
+    var s = b64.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4 !== 0) s += '=';
+    var bin = atob(s);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    if (typeof TextDecoder !== 'undefined') {
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    // 极老浏览器回退
+    var out = '';
+    for (var j = 0; j < bytes.length; j++) {
+      out += '%' + ('0' + bytes[j].toString(16)).slice(-2);
+    }
+    return decodeURIComponent(out);
+  }
+
+  function getParam(name) {
+    var m = new RegExp('[?&]' + name + '=([^&]*)').exec(location.search);
+    return m ? m[1] : null;
+  }
+
+  var raw = getParam('d');
+  if (!raw) {
+    fail('未找到数据参数。');
+    return;
+  }
+
+  // URLSearchParams 未使用时，?d= 的值需手动 decodeURIComponent
+  var decoded;
+  try {
+    decoded = decodeURIComponent(raw.replace(/\+/g, ' '));
+  } catch (e) {
+    decoded = raw;
+  }
+
+  // 容错：若写入端未对 Base64 做 URL 编码，+ 可能已被解析为空格
+  var candidates = [decoded];
+  if (decoded.indexOf(' ') !== -1) {
+    candidates.push(decoded.replace(/ /g, '+'));
+  }
+
+  var lastErr = null;
+  for (var i = 0; i < candidates.length; i++) {
+    try {
+      el.className = '';
+      el.textContent = base64ToUtf8(candidates[i]);
+      return;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  fail('数据解析失败：' + (lastErr ? lastErr.message : '未知错误'));
+})();
+</script>
+</body>
+</html>
